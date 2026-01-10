@@ -86,17 +86,36 @@ mkdir -p ~/.aria2
 
 # 创建配置文件
 cat > ~/.aria2/aria2.conf << 'EOF'
+# 基础配置
 dir=/root/downloads
 continue=true
 max-concurrent-downloads=3
 max-connection-per-server=16
+
+# RPC 配置
 enable-rpc=true
 rpc-listen-all=false
 rpc-listen-port=6800
 rpc-secret=your_secret_here
+
+# BT 配置
 bt-enable-lpd=true
 bt-max-peers=50
 seed-time=0
+
+# DHT 配置（重要：不依赖单一 tracker）
+enable-dht=true
+dht-listen-port=6881-6999
+
+# Tracker 超时配置（避免频繁报错）
+bt-tracker-connect-timeout=10
+bt-tracker-timeout=60
+
+# 公共 tracker（备用）
+bt-tracker=udp://tracker.opentrackr.org:1337/announce,udp://open.stealth.si:80/announce,udp://exodus.desync.com:6969/announce,udp://tracker.torrent.eu.org:451/announce
+
+# 日志级别（减少超时日志刷屏）
+log-level=warn
 EOF
 
 # 启动 aria2（或配置 systemd 服务）
