@@ -1,0 +1,6 @@
+feedparser
+requests
+python-dotenv
+
+# 可选：绕过反爬虫
+# curl_cffi
