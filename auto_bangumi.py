@@ -302,36 +302,16 @@ def get_aria2_downloading_files():
 # --- 上传到夸克 ---
 
 def upload_to_alist(local_path, remote_path):
-    """上传文件到 AList/OpenList，使用流式上传"""
+    """上传文件到 AList/OpenList"""
     file_size = os.path.getsize(local_path)
     file_size_mb = file_size / (1024 * 1024)
     # 根据文件大小动态调整超时时间
-    # 假设最慢上传速度为 1MB/s，再加 5 分钟缓冲
-    upload_timeout = max(600, int(file_size_mb) + 300)
+    # 假设最慢上传速度为 0.5MB/s，再加 10 分钟缓冲
+    upload_timeout = max(900, int(file_size_mb * 2) + 600)
     timeout = (30, upload_timeout)
     print(f"  文件大小: {file_size_mb:.1f} MB, 超时设置: {upload_timeout} 秒")
 
-    # 方法1: 使用 /api/fs/form (multipart 表单上传，更适合大文件)
-    url = f"{ALIST_HOST}/api/fs/form"
-    headers = {
-        "Authorization": ALIST_TOKEN,
-        "File-Path": quote(os.path.dirname(remote_path), safe=''),
-    }
-    filename = os.path.basename(local_path)
-    try:
-        with open(local_path, 'rb') as f:
-            files = {'file': (filename, f, 'application/octet-stream')}
-            resp = requests.put(url, headers=headers, files=files, timeout=timeout)
-            res_data = resp.json()
-            if res_data.get('code') == 200:
-                print(f"✅ 上传成功: {remote_path}")
-                return True
-            else:
-                print(f"  表单上传失败，尝试流式上传...")
-    except Exception as e:
-        print(f"  表单上传出错: {e}，尝试流式上传...")
-
-    # 方法2: 回退到 /api/fs/put (流式上传)
+    # 使用 /api/fs/put (流式上传)
     url = f"{ALIST_HOST}/api/fs/put"
     headers = {
         "Authorization": ALIST_TOKEN,
@@ -339,17 +319,26 @@ def upload_to_alist(local_path, remote_path):
         "Content-Length": str(file_size),
     }
     try:
+        print(f"  开始上传到: {url}")
+        start_time = time.time()
         with open(local_path, 'rb') as f:
             resp = requests.put(url, headers=headers, data=f, timeout=timeout)
+            elapsed = time.time() - start_time
+            print(f"  请求耗时: {elapsed:.1f} 秒")
             res_data = resp.json()
             if res_data.get('code') == 200:
-                print(f"✅ 上传成功: {remote_path}")
+                speed = file_size_mb / elapsed if elapsed > 0 else 0
+                print(f"✅ 上传成功: {remote_path} (速度: {speed:.2f} MB/s)")
                 return True
             else:
                 print(f"❌ 上传失败: {res_data}")
                 return False
+    except requests.exceptions.Timeout as e:
+        elapsed = time.time() - start_time
+        print(f"⚠️ 上传超时 (已耗时 {elapsed:.1f} 秒): {e}")
+        return False
     except Exception as e:
-        print(f"⚠️ 上传错误: {e}")
+        print(f"⚠️ 上传错误: {type(e).__name__}: {e}")
         return False
 
 def process_completed_downloads():
