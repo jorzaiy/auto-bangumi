@@ -309,9 +309,15 @@ def upload_to_alist(local_path, remote_path):
         "File-Path": quote(remote_path, safe=''),
         "Content-Length": str(file_size),
     }
-    # 根据文件大小动态调整超时时间（每 100MB 增加 60 秒）
-    timeout = max(300, (file_size // (100 * 1024 * 1024)) * 60 + 300)
+    # 根据文件大小动态调整超时时间
+    # 假设最慢上传速度为 1MB/s，再加 5 分钟缓冲
+    file_size_mb = file_size / (1024 * 1024)
+    upload_timeout = max(600, int(file_size_mb) + 300)
+    # 使用元组：(连接超时, 读取超时)
+    # 连接超时 30 秒，读取超时根据文件大小动态调整
+    timeout = (30, upload_timeout)
     try:
+        print(f"  文件大小: {file_size_mb:.1f} MB, 超时设置: {upload_timeout} 秒")
         with open(local_path, 'rb') as f:
             resp = requests.put(url, headers=headers, data=f, timeout=timeout)
             res_data = resp.json()
