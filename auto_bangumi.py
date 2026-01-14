@@ -302,22 +302,43 @@ def get_aria2_downloading_files():
 # --- 上传到夸克 ---
 
 def upload_to_alist(local_path, remote_path):
-    url = f"{ALIST_HOST}/api/fs/put"
+    """上传文件到 AList/OpenList，使用流式上传"""
     file_size = os.path.getsize(local_path)
+    file_size_mb = file_size / (1024 * 1024)
+    # 根据文件大小动态调整超时时间
+    # 假设最慢上传速度为 1MB/s，再加 5 分钟缓冲
+    upload_timeout = max(600, int(file_size_mb) + 300)
+    timeout = (30, upload_timeout)
+    print(f"  文件大小: {file_size_mb:.1f} MB, 超时设置: {upload_timeout} 秒")
+
+    # 方法1: 使用 /api/fs/form (multipart 表单上传，更适合大文件)
+    url = f"{ALIST_HOST}/api/fs/form"
+    headers = {
+        "Authorization": ALIST_TOKEN,
+        "File-Path": quote(os.path.dirname(remote_path), safe=''),
+    }
+    filename = os.path.basename(local_path)
+    try:
+        with open(local_path, 'rb') as f:
+            files = {'file': (filename, f, 'application/octet-stream')}
+            resp = requests.put(url, headers=headers, files=files, timeout=timeout)
+            res_data = resp.json()
+            if res_data.get('code') == 200:
+                print(f"✅ 上传成功: {remote_path}")
+                return True
+            else:
+                print(f"  表单上传失败，尝试流式上传...")
+    except Exception as e:
+        print(f"  表单上传出错: {e}，尝试流式上传...")
+
+    # 方法2: 回退到 /api/fs/put (流式上传)
+    url = f"{ALIST_HOST}/api/fs/put"
     headers = {
         "Authorization": ALIST_TOKEN,
         "File-Path": quote(remote_path, safe=''),
         "Content-Length": str(file_size),
     }
-    # 根据文件大小动态调整超时时间
-    # 假设最慢上传速度为 1MB/s，再加 5 分钟缓冲
-    file_size_mb = file_size / (1024 * 1024)
-    upload_timeout = max(600, int(file_size_mb) + 300)
-    # 使用元组：(连接超时, 读取超时)
-    # 连接超时 30 秒，读取超时根据文件大小动态调整
-    timeout = (30, upload_timeout)
     try:
-        print(f"  文件大小: {file_size_mb:.1f} MB, 超时设置: {upload_timeout} 秒")
         with open(local_path, 'rb') as f:
             resp = requests.put(url, headers=headers, data=f, timeout=timeout)
             res_data = resp.json()
